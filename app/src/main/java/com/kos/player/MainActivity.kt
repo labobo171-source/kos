@@ -167,13 +167,27 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
-        fun playTrack(uri: String, title: String, artist: String) {
+        fun playTrack(uri: String, title: String, artist: String, queueJson: String, startIndex: Int) {
             runOnUiThread {
                 try {
-                    val metadata = MediaMetadata.Builder().setTitle(title).setArtist(artist).build()
-                    val item = MediaItem.Builder().setUri(uri).setMediaMetadata(metadata).build()
+                    val queue = JSONArray(queueJson)
+                    val items = ArrayList<MediaItem>(queue.length())
+                    for (index in 0 until queue.length()) {
+                        val entry = queue.getJSONObject(index)
+                        val metadata = MediaMetadata.Builder()
+                            .setTitle(entry.optString("title"))
+                            .setArtist(entry.optString("artist"))
+                            .build()
+                        items.add(
+                            MediaItem.Builder()
+                                .setMediaId(entry.optString("id"))
+                                .setUri(entry.getString("url"))
+                                .setMediaMetadata(metadata)
+                                .build()
+                        )
+                    }
                     controller?.apply {
-                        setMediaItem(item)
+                        setMediaItems(items, startIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0)), 0L)
                         prepare()
                         play()
                     } ?: notifyWeb("onNativePlaybackError()")
