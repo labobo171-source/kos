@@ -10,6 +10,7 @@ import android.os.Build
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -17,6 +18,7 @@ import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.roundToInt
 
+@OptIn(UnstableApi::class)
 class PlaybackService : MediaSessionService() {
     companion object {
         const val AUDIO_PREFS = "kos_audio_effect_settings"
