@@ -7,6 +7,8 @@ import android.database.Cursor
 import android.graphics.Color
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.Bundle
 import android.provider.MediaStore
 import android.view.Gravity
@@ -46,6 +48,19 @@ class MainActivity : AppCompatActivity() {
     private var favoritesOnly = false
     private var shuffle = false
     private var repeat = false
+    private val handler = Handler(Looper.getMainLooper())
+    private val progressUpdater = object : Runnable {
+        override fun run() {
+            controller?.let { player ->
+                val duration = player.duration
+                if (duration > 0 && duration != androidx.media3.common.C.TIME_UNSET) {
+                    seek.max = duration.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+                    if (!seek.isPressed) seek.progress = player.currentPosition.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+                }
+            }
+            handler.postDelayed(this, 500)
+        }
+    }
 
     private val permission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
         if (it) scanSongs() else Toast.makeText(this, "برای نمایش آهنگ‌ها مجوز دسترسی لازم است", Toast.LENGTH_LONG).show()
@@ -62,7 +77,9 @@ class MainActivity : AppCompatActivity() {
         controllerFuture?.addListener({ controller = controllerFuture?.get(); controller?.addListener(object: androidx.media3.common.Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) { play.text = if (isPlaying) "Ⅱ" else "▶" }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) { current = controller?.currentMediaItemIndex ?: -1; updateTrack() }
+            override fun onAudioSessionIdChanged(audioSessionId: Int) { if (audioSessionId != 0) setupEffects(audioSessionId) }
         }) }, MoreExecutors.directExecutor())
+        handler.post(progressUpdater)
         requestAudioPermission()
     }
 
@@ -159,7 +176,7 @@ class MainActivity : AppCompatActivity() {
         c.setMediaItems(items, current, 0L); c.shuffleModeEnabled = shuffle; c.repeatMode = if (repeat) androidx.media3.common.Player.REPEAT_MODE_ONE else androidx.media3.common.Player.REPEAT_MODE_OFF; c.prepare(); c.play()
         title.text = song.title; artist.text = song.artist
         val sessionId = c.audioSessionId
-        if (sessionId != androidx.media3.common.C.AUDIO_SESSION_ID_UNSET) setupEffects(sessionId)
+        if (sessionId != androidx.media3.common.C.AUDIO_SESSION_ID_UNSET && sessionId != 0) setupEffects(sessionId)
     }
 
     private fun setupEffects(sessionId: Int) {
@@ -209,6 +226,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateTrack() { controller?.currentMediaItem?.mediaMetadata?.let { title.text = it.title ?: "بدون نام"; artist.text = it.artist ?: "" } }
     override fun onDestroy() {
+        handler.removeCallbacks(progressUpdater)
         controllerFuture?.let { MediaController.releaseFuture(it) }
         equalizer?.release(); bass?.release(); reverb?.release()
         super.onDestroy()
