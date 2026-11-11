@@ -2,6 +2,7 @@ package com.kos.player
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
@@ -14,6 +15,11 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -22,6 +28,8 @@ import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
+    private lateinit var player: ExoPlayer
+
     private val audioPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (!granted) Toast.makeText(this, "برای نمایش آهنگ‌ها مجوز دسترسی لازم است", Toast.LENGTH_LONG).show()
         loadPlayer()
@@ -31,6 +39,34 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = android.graphics.Color.rgb(3, 7, 18)
         window.navigationBarColor = android.graphics.Color.rgb(3, 7, 18)
+
+        player = ExoPlayer.Builder(this).build().apply {
+            setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(C.USAGE_MEDIA)
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                    .build(),
+                true
+            )
+            addListener(object : Player.Listener {
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    notifyWeb("onNativePlaybackState($isPlaying)")
+                }
+
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (playbackState == Player.STATE_READY) {
+                        notifyWeb("onNativeDuration(${player.duration.coerceAtLeast(0)})")
+                    } else if (playbackState == Player.STATE_ENDED) {
+                        notifyWeb("onNativeTrackEnded()")
+                    }
+                }
+
+                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                    notifyWeb("onNativePlaybackError()")
+                }
+            })
+        }
+
         webView = WebView(this)
         webView.setBackgroundColor(android.graphics.Color.rgb(3, 7, 18))
         webView.webChromeClient = WebChromeClient()
@@ -45,9 +81,16 @@ class MainActivity : AppCompatActivity() {
         }
         webView.addJavascriptInterface(AndroidBridge(), "AndroidBridge")
         setContentView(webView)
+
         val permission = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
         if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED) loadPlayer()
         else audioPermission.launch(permission)
+    }
+
+    private fun notifyWeb(script: String) {
+        if (::webView.isInitialized) runOnUiThread {
+            if (!isFinishing && !isDestroyed) webView.evaluateJavascript(script, null)
+        }
     }
 
     private fun loadPlayer() {
@@ -86,6 +129,40 @@ class MainActivity : AppCompatActivity() {
             }
             return result.toString()
         }
+
+        @JavascriptInterface
+        fun playTrack(uri: String) {
+            runOnUiThread {
+                try {
+                    player.setMediaItem(MediaItem.fromUri(Uri.parse(uri)))
+                    player.prepare()
+                    player.play()
+                } catch (e: Exception) {
+                    notifyWeb("onNativePlaybackError()")
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun pause() { runOnUiThread { player.pause() } }
+
+        @JavascriptInterface
+        fun resume() { runOnUiThread { player.play() } }
+
+        @JavascriptInterface
+        fun seekTo(positionMs: Long) { runOnUiThread { player.seekTo(positionMs.coerceAtLeast(0)) } }
+
+        @JavascriptInterface
+        fun setVolume(value: Float) { runOnUiThread { player.volume = value.coerceIn(0f, 1f) } }
+
+        @JavascriptInterface
+        fun getPosition(): Long = if (::player.isInitialized) player.currentPosition.coerceAtLeast(0) else 0L
+
+        @JavascriptInterface
+        fun getDuration(): Long = if (::player.isInitialized) player.duration.coerceAtLeast(0) else 0L
+
+        @JavascriptInterface
+        fun isPlaying(): Boolean = if (::player.isInitialized) player.isPlaying else false
     }
 
     @Deprecated("Deprecated in Java")
@@ -95,8 +172,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        webView.removeJavascriptInterface("AndroidBridge")
-        webView.destroy()
+        if (::webView.isInitialized) {
+            webView.removeJavascriptInterface("AndroidBridge")
+            webView.destroy()
+        }
+        if (::player.isInitialized) player.release()
         super.onDestroy()
     }
 }
