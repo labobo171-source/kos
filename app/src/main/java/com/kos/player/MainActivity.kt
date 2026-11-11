@@ -58,6 +58,15 @@ class MainActivity : AppCompatActivity() {
             notifyWeb("onNativePlaybackState($isPlaying)")
         }
 
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            if (mediaItem != null) {
+                val id = JSONObject.quote(mediaItem.mediaId)
+                val title = JSONObject.quote(mediaItem.mediaMetadata.title?.toString() ?: "")
+                val artist = JSONObject.quote(mediaItem.mediaMetadata.artist?.toString() ?: "")
+                notifyWeb("onNativeMediaItemChanged($id,$title,$artist)")
+            }
+        }
+
         override fun onPlaybackStateChanged(playbackState: Int) {
             controller?.let { cachedDuration = it.duration.takeIf { d -> d >= 0L } ?: 0L }
             if (playbackState == Player.STATE_READY) notifyWeb("onNativeDuration($cachedDuration)")
