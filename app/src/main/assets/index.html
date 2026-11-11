@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" data-theme="neon">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AuraSound Ultra 3D Player</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        :root[data-theme="neon"] { --primary:#00f0ff; --primary-glow:rgba(0,240,255,.4); --bg-glass:rgba(13,17,23,.65); --border-glass:rgba(0,240,255,.25); --text-main:#f8fafc; --text-sub:#94a3b8; }
+        :root[data-theme="cyberpunk"] { --primary:#ff0055; --primary-glow:rgba(255,0,85,.4); --bg-glass:rgba(23,11,28,.7); --border-glass:rgba(255,0,85,.3); --text-main:#ffe600; --text-sub:#f472b6; }
+        :root[data-theme="galaxy"] { --primary:#a855f7; --primary-glow:rgba(168,85,247,.4); --bg-glass:rgba(15,10,30,.7); --border-glass:rgba(168,85,247,.3); --text-main:#f3e8ff; --text-sub:#c084fc; }
+        :root[data-theme="matrix"] { --primary:#22c55e; --primary-glow:rgba(34,197,94,.4); --bg-glass:rgba(5,20,10,.75); --border-glass:rgba(34,197,94,.3); --text-main:#86efac; --text-sub:#4ade80; }
+        :root[data-theme="gold"] { --primary:#f59e0b; --primary-glow:rgba(245,158,11,.4); --bg-glass:rgba(24,18,9,.75); --border-glass:rgba(245,158,11,.3); --text-main:#fef3c7; --text-sub:#fbbf24; }
+        * { box-sizing:border-box; margin:0; padding:0; font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; -webkit-tap-highlight-color:transparent; user-select:none; }
+        body { background-color:#030712; color:var(--text-main); height:100vh; overflow:hidden; position:relative; display:flex; justify-content:center; align-items:center; }
+        #canvas-3d { position:absolute; top:0; left:0; width:100%; height:100%; z-index:1; }
+        .app-window { position:relative; z-index:2; width:100%; max-width:480px; height:100%; display:flex; flex-direction:column; background:var(--bg-glass); backdrop-filter:blur(25px) saturate(180%); -webkit-backdrop-filter:blur(25px) saturate(180%); border-left:1px solid var(--border-glass); border-right:1px solid var(--border-glass); box-shadow:0 0 50px rgba(0,0,0,.8); }
+        .app-header { padding:16px 20px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border-glass); }
+        .brand-logo { display:flex; align-items:center; gap:10px; font-weight:800; font-size:1.1rem; letter-spacing:-.5px; color:var(--primary); text-shadow:0 0 10px var(--primary-glow); }
+        .header-nav { display:flex; gap:10px; }
+        .icon-btn { width:40px; height:40px; border-radius:12px; border:1px solid var(--border-glass); background:rgba(255,255,255,.05); color:var(--text-main); display:flex; align-items:center; justify-content:center; font-size:1.1rem; cursor:pointer; transition:all .2s ease; }
+        .icon-btn:active { transform:scale(.92); background:var(--primary); color:#000; }
+        .player-hero { padding:20px 20px 10px; display:flex; flex-direction:column; align-items:center; }
+        .art-container { width:160px; height:160px; position:relative; display:flex; align-items:center; justify-content:center; margin-bottom:16px; }
+        .art-disc { width:120px; height:120px; border-radius:50%; background:radial-gradient(circle,rgba(255,255,255,.1) 0%,rgba(0,0,0,.8) 100%); border:3px solid var(--border-glass); display:flex; align-items:center; justify-content:center; box-shadow:0 0 30px var(--primary-glow); position:relative; z-index:2; }
+        .art-disc i { font-size:2.5rem; color:var(--primary); }
+        canvas#visualizer { position:absolute; top:0; left:0; width:100%; height:100%; z-index:1; }
+        .track-details { text-align:center; width:100%; margin-bottom:12px; }
+        .track-title { font-size:1.15rem; font-weight:700; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding:0 10px; }
+        .track-artist { font-size:.8rem; color:var(--text-sub); margin-top:4px; }
+        .scrubber-box { width:100%; padding:0 10px; margin-bottom:12px; }
+        .progress-bar-wrapper { width:100%; height:20px; display:flex; align-items:center; cursor:pointer; position:relative; touch-action:none; }
+        .progress-track { width:100%; height:6px; background:rgba(255,255,255,.1); border-radius:10px; position:relative; overflow:hidden; }
+        .progress-fill { height:100%; width:0%; background:var(--primary); box-shadow:0 0 12px var(--primary); border-radius:10px; }
+        .time-labels { display:flex; justify-content:space-between; font-size:.75rem; color:var(--text-sub); margin-top:4px; }
+        .controls-row { display:flex; align-items:center; justify-content:space-around; width:100%; margin-bottom:10px; }
+        .btn-play-main { width:56px; height:56px; border-radius:50%; background:var(--primary); color:#000; display:flex; align-items:center; justify-content:center; font-size:1.4rem; border:none; cursor:pointer; box-shadow:0 0 25px var(--primary-glow); transition:transform .15s ease; }
+        .btn-play-main:active { transform:scale(.92); }
+        .action-bar { display:flex; justify-content:center; padding:8px 20px; gap:10px; }
+        .glass-btn { background:rgba(255,255,255,.04); border:1px solid var(--border-glass); color:var(--text-main); padding:10px 16px; border-radius:14px; font-size:.8rem; font-weight:600; display:flex; align-items:center; justify-content:center; gap:8px; cursor:pointer; width:100%; transition:all .2s ease; }
+        .glass-btn:active { background:rgba(255,255,255,.1); transform:scale(.98); }
+        .filter-row { padding:0 20px 10px; display:flex; justify-content:space-between; gap:10px; }
+        .select-custom { background:rgba(0,0,0,.4); border:1px solid var(--border-glass); color:var(--text-main); padding:8px 12px; border-radius:12px; font-size:.75rem; outline:none; flex:1; }
+        .playlist-view { flex:1; overflow-y:auto; padding:0 20px 20px; }
+        .playlist-card { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.06); border-radius:16px; margin-bottom:8px; backdrop-filter:blur(10px); cursor:pointer; transition:all .2s ease; }
+        .playlist-card:hover { background:rgba(255,255,255,.06); }
+        .playlist-card.active { background:rgba(255,255,255,.1); border-color:var(--primary); box-shadow:0 0 15px var(--primary-glow); }
+        .card-info { display:flex; flex-direction:column; gap:5px; overflow:hidden; flex:1; }
+        .card-title { font-size:.9rem; font-weight:700; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .card-meta { font-size:.75rem; color:var(--text-sub); display:flex; gap:15px; }
+        .card-meta span { display:flex; align-items:center; gap:4px; }
+        .card-actions { display:flex; align-items:center; gap:12px; margin-right:12px; }
+        .action-icon { font-size:1rem; color:var(--text-sub); cursor:pointer; padding:6px; transition:all .2s ease; }
+        .action-icon:hover { color:var(--text-main); }
+        .action-icon.favorite.active { color:#ff0055; text-shadow:0 0 10px rgba(255,0,85,.6); }
+        .bottom-sheet { position:fixed; bottom:-100%; left:0; right:0; background:rgba(10,15,25,.95); backdrop-filter:blur(30px); border-top:1px solid var(--border-glass); border-top-left-radius:28px; border-top-right-radius:28px; padding:20px; transition:bottom .35s cubic-bezier(.4,0,.2,1); z-index:100; max-height:85vh; overflow-y:auto; }
+        .bottom-sheet.open { bottom:0; }
+        .sheet-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+        .knob-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:20px; }
+        .knob-card { background:rgba(255,255,255,.03); border:1px solid var(--border-glass); border-radius:16px; padding:12px 8px; text-align:center; font-size:.75rem; }
+        .knob-card input { width:100%; margin-top:8px; accent-color:var(--primary); }
+        .eq-sliders-container { display:flex; justify-content:space-between; background:rgba(0,0,0,.4); border:1px solid var(--border-glass); padding:16px 10px; border-radius:20px; gap:4px; }
+        .eq-col { display:flex; flex-direction:column; align-items:center; font-size:.65rem; color:var(--text-sub); flex:1; }
+        .eq-col input { writing-mode:bt-lr; appearance:slider-vertical; width:6px; height:80px; margin:8px 0; accent-color:var(--primary); }
+        .car-dashboard { position:fixed; top:0; left:0; width:100vw; height:100vh; background:#030712; z-index:999; display:flex; flex-direction:column; justify-content:flex-start; gap:20px; padding:24px 20px; opacity:0; pointer-events:none; transition:opacity .3s ease; overflow-y:auto; }
+        .car-dashboard.active { opacity:1; pointer-events:auto; }
+        .car-top-bar { display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-glass); padding-bottom:12px; }
+        .car-badge { background:var(--primary); color:#000; padding:6px 16px; border-radius:20px; font-weight:800; font-size:.85rem; display:flex; align-items:center; gap:8px; }
+        .car-center-info { text-align:center; margin:10px 0 0; }
+        .car-now-playing { font-size:1.6rem; font-weight:900; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:6px; }
+        .car-now-album { font-size:1rem; color:var(--primary); font-weight:600; }
+        .car-volume-box { background:rgba(255,255,255,.04); border:1px solid var(--border-glass); border-radius:20px; padding:12px 18px; display:flex; align-items:center; gap:16px; }
+        .car-volume-box i { font-size:1.4rem; color:var(--primary); }
+        .car-volume-slider { flex:1; height:12px; accent-color:var(--primary); cursor:pointer; }
+        .car-giant-controls { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; align-items:center; }
+        .btn-car-giant { background:rgba(255,255,255,.05); border:2px solid var(--border-glass); border-radius:28px; color:#fff; font-size:2.2rem; height:95px; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+        .btn-car-giant:active { background:var(--primary); color:#000; }
+        .btn-car-giant.play { height:110px; background:var(--primary); color:#000; font-size:3rem; box-shadow:0 0 40px var(--primary-glow); }
+        .car-seek-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+        .btn-car-seek { background:rgba(255,255,255,.03); border:1px solid var(--border-glass); border-radius:20px; color:var(--text-sub); font-size:1.1rem; height:60px; display:flex; align-items:center; justify-content:center; gap:10px; cursor:pointer; font-weight:700; }
+        input[type="file"] { display:none; }
+    </style>
+</head>
+<body>
+    <canvas id="canvas-3d"></canvas>
+    <div class="app-window">
+        <header class="app-header">
+            <div class="brand-logo"><i class="fas fa-wave-square"></i> AuraSound 3D</div>
+            <div class="header-nav">
+                <button class="icon-btn" id="btn-car-mode" title="حالت رانندگی"><i class="fas fa-car"></i></button>
+                <button class="icon-btn" id="btn-open-sheet" title="تنظیمات اکولایزر"><i class="fas fa-sliders-h"></i></button>
+            </div>
+        </header>
+        <section class="player-hero">
+            <div class="art-container"><canvas id="visualizer"></canvas><div class="art-disc"><i class="fas fa-compact-disc"></i></div></div>
+            <div class="track-details"><div class="track-title" id="title">فایلی انتخاب نشده</div><div class="track-artist" id="artist">یک آهنگ انتخاب کنید</div></div>
+            <div class="scrubber-box">
+                <div class="progress-bar-wrapper" id="progress-wrapper"><div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div></div>
+                <div class="time-labels"><span id="current-time">00:00</span><span id="duration">00:00</span></div>
+            </div>
+            <div class="controls-row">
+                <button class="icon-btn" id="btn-shuffle"><i class="fas fa-random"></i></button>
+                <button class="icon-btn" id="btn-prev" style="font-size:1.2rem;"><i class="fas fa-step-backward"></i></button>
+                <button class="btn-play-main" id="btn-play"><i class="fas fa-play"></i></button>
+                <button class="icon-btn" id="btn-next" style="font-size:1.2rem;"><i class="fas fa-step-forward"></i></button>
+                <button class="icon-btn" id="btn-repeat"><i class="fas fa-redo"></i></button>
+            </div>
+        </section>
+        <div class="action-bar">
+            <label class="glass-btn" id="btn-auto-scan" style="cursor:pointer;"><i class="fas fa-search"></i> اسکن خودکار حافظه</label>
+            <label class="glass-btn"><i class="fas fa-file-audio"></i> انتخاب فایل<input type="file" id="file-input" multiple accept="audio/*,video/*"></label>
+        </div>
+        <div class="filter-row">
+            <select class="select-custom" id="sort-select">
+                <option value="default">مرتب‌سازی پیش‌فرض</option><option value="name">نام آهنگ (الفبا)</option><option value="size">حجم فایل</option><option value="date">تاریخ افزودن</option><option value="favorites">فقط علاقه‌مندی‌ها ❤️</option>
+            </select>
+            <select class="select-custom" id="theme-select">
+                <option value="neon">نئون سیان (Neon)</option><option value="cyberpunk">سایبرپانک (Cyberpunk)</option><option value="galaxy">کهکشان بنفش (Galaxy)</option><option value="matrix">ماتریکس سبز (Matrix)</option><option value="gold">طلا (Luxury Gold)</option>
+            </select>
+        </div>
+        <div class="playlist-view" id="playlist-items"></div>
+    </div>
+    <div class="bottom-sheet" id="audio-sheet">
+        <div class="sheet-head"><span style="font-weight:700;font-size:1rem;"><i class="fas fa-sliders-h" style="color:var(--primary)"></i> تنظیمات بیس عمیق و صدای شفاف</span><button class="icon-btn" id="btn-close-sheet"><i class="fas fa-times"></i></button></div>
+        <div class="knob-grid">
+            <div class="knob-card"><span style="color:var(--primary)">آمپلی‌فایر</span><input type="range" id="amp-gain" min="1" max="10" step="0.2" value="1"><div id="amp-val" style="margin-top:4px;">1.0x</div></div>
+            <div class="knob-card"><span>بیس نرم</span><input type="range" id="bass-boost" min="-12" max="18" step="0.5" value="3"><div id="bass-val" style="margin-top:4px;">+3.0 dB</div></div>
+            <div class="knob-card"><span>صدای زیر</span><input type="range" id="treble-boost" min="-12" max="15" step="0.5" value="0"><div id="treble-val" style="margin-top:4px;">0 dB</div></div>
+        </div>
+        <div class="eq-sliders-container">
+            <div class="eq-col"><span>31</span><input type="range" class="eq-slider" data-index="0" min="-12" max="12" value="0"></div><div class="eq-col"><span>62</span><input type="range" class="eq-slider" data-index="1" min="-12" max="12" value="0"></div><div class="eq-col"><span>125</span><input type="range" class="eq-slider" data-index="2" min="-12" max="12" value="0"></div><div class="eq-col"><span>250</span><input type="range" class="eq-slider" data-index="3" min="-12" max="12" value="0"></div><div class="eq-col"><span>500</span><input type="range" class="eq-slider" data-index="4" min="-12" max="12" value="0"></div><div class="eq-col"><span>1k</span><input type="range" class="eq-slider" data-index="5" min="-12" max="12" value="0"></div><div class="eq-col"><span>2k</span><input type="range" class="eq-slider" data-index="6" min="-12" max="12" value="0"></div><div class="eq-col"><span>4k</span><input type="range" class="eq-slider" data-index="7" min="-12" max="12" value="0"></div><div class="eq-col"><span>8k</span><input type="range" class="eq-slider" data-index="8" min="-12" max="12" value="0"></div><div class="eq-col"><span>16k</span><input type="range" class="eq-slider" data-index="9" min="-12" max="12" value="0"></div>
+        </div>
+    </div>
+    <div class="car-dashboard" id="car-mode-overlay">
+        <div class="car-top-bar"><div class="car-badge"><i class="fas fa-steering-wheel"></i> حالت رانندگی ایمن</div><button class="icon-btn" id="btn-close-car-mode" style="width:50px;height:50px;font-size:1.5rem;"><i class="fas fa-times"></i></button></div>
+        <div class="car-center-info"><div class="car-now-playing" id="car-title">فایلی انتخاب نشده</div><div class="car-now-album" id="car-artist">حالت لمس درشت</div></div>
+        <div class="car-volume-box"><i class="fas fa-volume-down"></i><input type="range" class="car-volume-slider" id="car-volume" min="0" max="1" step="0.01" value="1"><i class="fas fa-volume-up"></i></div>
+        <div class="car-giant-controls"><button class="btn-car-giant" id="btn-car-prev"><i class="fas fa-backward"></i></button><button class="btn-car-giant play" id="btn-car-play"><i class="fas fa-play"></i></button><button class="btn-car-giant" id="btn-car-next"><i class="fas fa-forward"></i></button></div>
+        <div class="car-seek-row"><button class="btn-car-seek" id="btn-car-backward"><i class="fas fa-undo"></i> ۱۰ ثانیه</button><button class="btn-car-seek" id="btn-car-forward">۱۰ ثانیه <i class="fas fa-redo"></i></button></div>
+    </div>
+    <audio id="audio-element" crossorigin="anonymous"></audio>
+    <video id="video-element" style="display:none;"></video>
+    <script>
+        const audioElement=document.getElementById('audio-element'), videoElement=document.getElementById('video-element'), canvas=document.getElementById('visualizer'), ctx=canvas.getContext('2d');
+        const playBtn=document.getElementById('btn-play'), prevBtn=document.getElementById('btn-prev'), nextBtn=document.getElementById('btn-next'), progressWrapper=document.getElementById('progress-wrapper'), progressFill=document.getElementById('progress-fill'), currentTimeEl=document.getElementById('current-time'), durationEl=document.getElementById('duration');
+        const fileInput=document.getElementById('file-input'), autoScanBtn=document.getElementById('btn-auto-scan'), playlistItems=document.getElementById('playlist-items'), titleEl=document.getElementById('title'), artistEl=document.getElementById('artist'), sortSelect=document.getElementById('sort-select'), themeSelect=document.getElementById('theme-select');
+        const audioSheet=document.getElementById('audio-sheet');
+        document.getElementById('btn-open-sheet').onclick=()=>audioSheet.classList.add('open');
+        document.getElementById('btn-close-sheet').onclick=()=>audioSheet.classList.remove('open');
+        const carModeOverlay=document.getElementById('car-mode-overlay'), carTitle=document.getElementById('car-title'), carArtist=document.getElementById('car-artist'), carPlayBtn=document.getElementById('btn-car-play'), carVolumeSlider=document.getElementById('car-volume');
+        document.getElementById('btn-car-mode').onclick=()=>carModeOverlay.classList.add('active');
+        document.getElementById('btn-close-car-mode').onclick=()=>carModeOverlay.classList.remove('active');
+        let playlist=[], currentIndex=-1, isPlaying=false, isShuffle=false, isRepeat=false;
+        async function autoScanStorage(){if(window.AndroidBridge){try{const tracks=JSON.parse(AndroidBridge.getSongsJson());tracks.forEach(t=>{if(!playlist.some(p=>p.nativeId===t.id)){playlist.push({...t,file:null,url:t.url,isFavorite:false});}});applySortingAndRender();if(currentIndex===-1&&playlist.length)playTrack(0);}catch(err){console.error(err);alert('خواندن آهنگ‌های حافظه انجام نشد.');}return;}if('showDirectoryPicker' in window){try{const dirHandle=await window.showDirectoryPicker();processDirectoryHandle(dirHandle);}catch(err){}}else{alert('مرورگر از اسکن پوشه پشتیبانی نمی‌کند. از دکمه انتخاب فایل استفاده کنید.');}}
+        async function processDirectoryHandle(dirHandle){for await(const entry of dirHandle.values()){if(entry.kind==='file'){const file=await entry.getFile();if(file.type.startsWith('audio/')||file.name.match(/\.(mp3|m4a|wav|aac|ogg)$/i)){addTrackToPlaylist(file);}}else if(entry.kind==='directory'){processDirectoryHandle(entry);}}}
+        function addTrackToPlaylist(file){const title=file.name.replace(/\.[^/.]+$/,"");playlist.push({file,url:URL.createObjectURL(file),title,artist:'حافظه دستگاه',sizeBytes:file.size,size:(file.size/(1024*1024)).toFixed(1)+' MB',dateMs:file.lastModified,date:new Date(file.lastModified).toLocaleDateString('fa-IR'),isFavorite:false});applySortingAndRender();if(currentIndex===-1)playTrack(0);}
+        autoScanBtn.onclick=autoScanStorage;
+        fileInput.addEventListener('change',e=>{const files=Array.from(e.target.files);if(!files.length)return;files.forEach(file=>addTrackToPlaylist(file));});
+        function applySortingAndRender(){const sortVal=sortSelect.value;let displayList=[...playlist];if(sortVal==='name')displayList.sort((a,b)=>a.title.localeCompare(b.title,'fa'));else if(sortVal==='size')displayList.sort((a,b)=>b.sizeBytes-a.sizeBytes);else if(sortVal==='date')displayList.sort((a,b)=>b.dateMs-a.dateMs);else if(sortVal==='favorites')displayList=displayList.filter(track=>track.isFavorite);renderPlaylist(displayList);}
+        sortSelect.addEventListener('change',applySortingAndRender);
+        function renderPlaylist(listToRender=playlist){playlistItems.innerHTML='';if(listToRender.length===0){playlistItems.innerHTML='<div style="text-align:center;color:var(--text-sub);padding:30px;font-size:.85rem;">آهنگی یافت نشد</div>';return;}listToRender.forEach(track=>{const originalIndex=playlist.findIndex(t=>t===track),card=document.createElement('div');card.className=`playlist-card ${originalIndex===currentIndex?'active':''}`;card.innerHTML=`<div class="card-info"><div class="card-title">${track.title}</div><div class="card-meta"><span><i class="fas fa-hdd"></i> ${track.size}</span><span><i class="fas fa-calendar-alt"></i> ${track.date}</span></div></div><div class="card-actions"><i class="fas fa-heart action-icon favorite ${track.isFavorite?'active':''}" title="علاقه‌مندی"></i><i class="fas fa-share-alt action-icon share" title="اشتراک‌گذاری"></i></div>`;card.querySelector('.card-info').onclick=()=>playTrack(originalIndex);const favBtn=card.querySelector('.action-icon.favorite');favBtn.onclick=e=>{e.stopPropagation();track.isFavorite=!track.isFavorite;applySortingAndRender();};const shareBtn=card.querySelector('.action-icon.share');shareBtn.onclick=e=>{e.stopPropagation();if(navigator.share){navigator.share({title:track.title,text:`شنیدن آهنگ ${track.title}`,url:window.location.href}).catch(()=>{});}else if(navigator.clipboard){navigator.clipboard.writeText(track.title);alert('نام آهنگ کپی شد.');}};playlistItems.appendChild(card);});}
+        themeSelect.addEventListener('change',e=>{document.documentElement.setAttribute('data-theme',e.target.value);const colorMap={neon:0x00f0ff,cyberpunk:0xff0055,galaxy:0xa855f7,matrix:0x22c55e,gold:0xf59e0b};createParticles(colorMap[e.target.value]);});
+        carVolumeSlider.addEventListener('input',e=>{const val=parseFloat(e.target.value);audioElement.volume=val;videoElement.volume=val;});
+        let audioCtx,analyser,gainNode,bassFilter,subCutFilter,trebleFilter,limiterNode,audioSourceAudio;const eqFrequencies=[31,62,125,250,500,1000,2000,4000,8000,16000];let eqFilters=[];
+        function initAudioEngine(){if(audioCtx)return;audioCtx=new(window.AudioContext||window.webkitAudioContext)();analyser=audioCtx.createAnalyser();analyser.fftSize=128;gainNode=audioCtx.createGain();gainNode.gain.value=parseFloat(document.getElementById('amp-gain').value);subCutFilter=audioCtx.createBiquadFilter();subCutFilter.type='highpass';subCutFilter.frequency.value=30;bassFilter=audioCtx.createBiquadFilter();bassFilter.type='lowshelf';bassFilter.frequency.value=80;bassFilter.gain.value=parseFloat(document.getElementById('bass-boost').value);trebleFilter=audioCtx.createBiquadFilter();trebleFilter.type='highshelf';trebleFilter.frequency.value=3500;trebleFilter.gain.value=parseFloat(document.getElementById('treble-boost').value);limiterNode=audioCtx.createDynamicsCompressor();eqFilters=eqFrequencies.map(freq=>{const filter=audioCtx.createBiquadFilter();filter.type='peaking';filter.frequency.value=freq;filter.Q.value=1.4;filter.gain.value=0;return filter;});audioSourceAudio=audioCtx.createMediaElementSource(audioElement);connectChain(audioSourceAudio);drawCircularVisualizer();}
+        function connectChain(source){source.disconnect();let current=source;current.connect(gainNode);current=gainNode;current.connect(subCutFilter);current=subCutFilter;current.connect(bassFilter);current=bassFilter;current.connect(trebleFilter);current=trebleFilter;eqFilters.forEach(filter=>{current.connect(filter);current=filter;});current.connect(limiterNode);limiterNode.connect(analyser);analyser.connect(audioCtx.destination);}
+        document.getElementById('amp-gain').addEventListener('input',e=>{const val=parseFloat(e.target.value);document.getElementById('amp-val').textContent=val.toFixed(1)+'x';if(gainNode)gainNode.gain.value=val;});
+        document.getElementById('bass-boost').addEventListener('input',e=>{const val=parseFloat(e.target.value);document.getElementById('bass-val').textContent=(val>0?'+':'')+val.toFixed(1)+' dB';if(bassFilter)bassFilter.gain.value=val;});
+        document.getElementById('treble-boost').addEventListener('input',e=>{const val=parseFloat(e.target.value);document.getElementById('treble-val').textContent=(val>0?'+':'')+val.toFixed(1)+' dB';if(trebleFilter)trebleFilter.gain.value=val;});
+        document.querySelectorAll('.eq-slider').forEach(slider=>{slider.addEventListener('input',e=>{const idx=parseInt(e.target.getAttribute('data-index')),val=parseFloat(e.target.value);if(eqFilters[idx])eqFilters[idx].gain.value=val;});});
+        function drawCircularVisualizer(){requestAnimationFrame(drawCircularVisualizer);if(!analyser)return;const bufferLength=analyser.frequencyBinCount,dataArray=new Uint8Array(bufferLength);analyser.getByteFrequencyData(dataArray);ctx.clearRect(0,0,canvas.width,canvas.height);const centerX=canvas.width/2,centerY=canvas.height/2,radius=55,bars=40;for(let i=0;i<bars;i++){const barHeight=(dataArray[i]/255)*30,rad=(i*2*Math.PI)/bars,x1=centerX+Math.cos(rad)*radius,y1=centerY+Math.sin(rad)*radius,x2=centerX+Math.cos(rad)*(radius+barHeight),y2=centerY+Math.sin(rad)*(radius+barHeight);ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--primary').trim()||'#00f0ff';ctx.lineWidth=3;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();}}
+        canvas.width=160;canvas.height=160;
+        let scene,camera,renderer,particlesMesh;
+        function init3D(){const canvas3D=document.getElementById('canvas-3d');scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(75,window.innerWidth/window.innerHeight,.1,1000);camera.position.z=30;renderer=new THREE.WebGLRenderer({canvas:canvas3D,alpha:true,antialias:true});renderer.setSize(window.innerWidth,window.innerHeight);createParticles(0x00f0ff);animate3D();}
+        function createParticles(colorHex){if(particlesMesh)scene.remove(particlesMesh);const count=600,geometry=new THREE.BufferGeometry(),positions=new Float32Array(count*3);for(let i=0;i<count*3;i++)positions[i]=(Math.random()-.5)*80;geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));const material=new THREE.PointsMaterial({size:.8,color:colorHex,transparent:true,opacity:.6});particlesMesh=new THREE.Points(geometry,material);scene.add(particlesMesh);}
+        function animate3D(){requestAnimationFrame(animate3D);if(particlesMesh){particlesMesh.rotation.y+=.0015;particlesMesh.rotation.x+=.0008;}renderer.render(scene,camera);}
+        window.addEventListener('resize',()=>{if(camera&&renderer){camera.aspect=window.innerWidth/window.innerHeight;camera.updateProjectionMatrix();renderer.setSize(window.innerWidth,window.innerHeight);}});
+        init3D();
+        window.addEventListener('load',()=>{if(window.AndroidBridge)setTimeout(autoScanStorage,250);});
+        function playTrack(index){if(index<0||index>=playlist.length)return;initAudioEngine();if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume();currentIndex=index;const track=playlist[index];audioElement.src=track.url;audioElement.play().then(()=>{isPlaying=true;updatePlayButtons();updateMediaSession(track);}).catch(()=>{});titleEl.textContent=track.title;artistEl.textContent=track.artist;carTitle.textContent=track.title;carArtist.textContent=track.artist;applySortingAndRender();}
+        function togglePlay(){if(currentIndex===-1&&playlist.length>0){playTrack(0);return;}if(!audioElement.src)return;initAudioEngine();if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume();if(isPlaying){audioElement.pause();isPlaying=false;}else{audioElement.play();isPlaying=true;}updatePlayButtons();}
+        function updatePlayButtons(){const icon=isPlaying?'<i class="fas fa-pause"></i>':'<i class="fas fa-play"></i>';playBtn.innerHTML=icon;carPlayBtn.innerHTML=icon;}
+        playBtn.onclick=togglePlay;carPlayBtn.onclick=togglePlay;
+        nextBtn.onclick=()=>{if(!playlist.length)return;let next=isShuffle?Math.floor(Math.random()*playlist.length):currentIndex+1;if(next>=playlist.length)next=0;playTrack(next);};
+        prevBtn.onclick=()=>{if(!playlist.length)return;let prev=currentIndex-1;if(prev<0)prev=playlist.length-1;playTrack(prev);};
+        document.getElementById('btn-car-next').onclick=()=>nextBtn.click();document.getElementById('btn-car-prev').onclick=()=>prevBtn.click();
+        document.getElementById('btn-car-forward').onclick=()=>{audioElement.currentTime=Math.min(audioElement.duration,audioElement.currentTime+10);};
+        document.getElementById('btn-car-backward').onclick=()=>{audioElement.currentTime=Math.max(0,audioElement.currentTime-10);};
+        document.getElementById('btn-shuffle').onclick=e=>{isShuffle=!isShuffle;e.currentTarget.style.color=isShuffle?'var(--primary)':'var(--text-main)';};
+        document.getElementById('btn-repeat').onclick=e=>{isRepeat=!isRepeat;e.currentTarget.style.color=isRepeat?'var(--primary)':'var(--text-main)';};
+        audioElement.ontimeupdate=()=>{if(!audioElement.duration)return;const pct=(audioElement.currentTime/audioElement.duration)*100;progressFill.style.width=pct+'%';currentTimeEl.textContent=formatTime(audioElement.currentTime);durationEl.textContent=formatTime(audioElement.duration);};
+        audioElement.onended=()=>{if(isRepeat)playTrack(currentIndex);else nextBtn.click();};
+        progressWrapper.onclick=e=>{if(!audioElement.duration)return;const rect=progressWrapper.getBoundingClientRect(),clickPos=(e.clientX-rect.left)/rect.width;audioElement.currentTime=clickPos*audioElement.duration;};
+        function formatTime(sec){const m=Math.floor(sec/60),s=Math.floor(sec%60);return `${m<10?'0':''}${m}:${s<10?'0':''}${s}`;}
+        function updateMediaSession(track){if('mediaSession'in navigator){navigator.mediaSession.metadata=new MediaMetadata({title:track.title,artist:track.artist,album:'AuraSound 3D',artwork:[{src:'https://cdn-icons-png.flaticon.com/512/3659/3659738.png',sizes:'512x512',type:'image/png'}]});navigator.mediaSession.setActionHandler('play',()=>togglePlay());navigator.mediaSession.setActionHandler('pause',()=>togglePlay());navigator.mediaSession.setActionHandler('previoustrack',()=>prevBtn.click());navigator.mediaSession.setActionHandler('nexttrack',()=>nextBtn.click());}}
+    </script>
+</body>
+</html>
