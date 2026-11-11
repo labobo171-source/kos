@@ -2,6 +2,7 @@ package com.kos.player
 
 import android.Manifest
 import android.content.ComponentName
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -226,6 +227,22 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface fun resume() { runOnUiThread { controller?.play() } }
         @JavascriptInterface fun seekTo(positionMs: Long) { runOnUiThread { controller?.seekTo(positionMs.coerceAtLeast(0L)) } }
         @JavascriptInterface fun setVolume(value: Float) { runOnUiThread { controller?.volume = value.coerceIn(0f, 1f) } }
+
+        @JavascriptInterface
+        fun setAudioEffect(key: String, value: Float) {
+            if (!key.matches(Regex("^(amp|bass|treble|midrange|sub|subwoofer|supertweeter)$"))) return
+            getSharedPreferences(PlaybackService.AUDIO_PREFS, MODE_PRIVATE)
+                .edit().putFloat(key, value).apply()
+            sendBroadcast(Intent(PlaybackService.ACTION_APPLY_AUDIO_EFFECTS).setPackage(packageName))
+        }
+
+        @JavascriptInterface
+        fun setEqualizerBand(index: Int, value: Float) {
+            if (index !in 0..9) return
+            getSharedPreferences(PlaybackService.AUDIO_PREFS, MODE_PRIVATE)
+                .edit().putFloat("eq_$index", value.coerceIn(-12f, 12f)).apply()
+            sendBroadcast(Intent(PlaybackService.ACTION_APPLY_AUDIO_EFFECTS).setPackage(packageName))
+        }
 
         // Return cached values: never block the WebView bridge thread waiting for the UI thread.
         @JavascriptInterface fun getPosition(): Long = cachedPosition
