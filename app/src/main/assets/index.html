@@ -185,8 +185,8 @@
         nextBtn.onclick=()=>{if(!playlist.length)return;let next;if(isShuffle&&playlist.length>1){do{next=Math.floor(Math.random()*playlist.length);}while(next===currentIndex);}else{next=currentIndex<0?0:currentIndex+1;if(next>=playlist.length)next=0;}playTrack(next);};
         prevBtn.onclick=()=>{if(!playlist.length)return;let prev=currentIndex<0?0:currentIndex-1;if(prev<0)prev=playlist.length-1;playTrack(prev);};
         document.getElementById('btn-car-next').onclick=()=>nextBtn.click();document.getElementById('btn-car-prev').onclick=()=>prevBtn.click();
-        document.getElementById('btn-car-forward').onclick=()=>{audioElement.currentTime=Math.min(audioElement.duration,audioElement.currentTime+10);};
-        document.getElementById('btn-car-backward').onclick=()=>{audioElement.currentTime=Math.max(0,audioElement.currentTime-10);};
+        document.getElementById('btn-car-forward').onclick=()=>seekBy(10000);
+        document.getElementById('btn-car-backward').onclick=()=>seekBy(-10000);
         document.getElementById('btn-shuffle').onclick=e=>{isShuffle=!isShuffle;e.currentTarget.style.color=isShuffle?'var(--primary)':'var(--text-main)';};
         document.getElementById('btn-repeat').onclick=e=>{isRepeat=!isRepeat;e.currentTarget.style.color=isRepeat?'var(--primary)':'var(--text-main)';};
         audioElement.onplay=()=>{isPlaying=true;updatePlayButtons();};audioElement.onpause=()=>{isPlaying=false;updatePlayButtons();};audioElement.onerror=()=>{console.error('Audio element error',audioElement.error);};audioElement.ontimeupdate=()=>{if(!audioElement.duration)return;const pct=(audioElement.currentTime/audioElement.duration)*100;progressFill.style.width=pct+'%';currentTimeEl.textContent=formatTime(audioElement.currentTime);durationEl.textContent=formatTime(audioElement.duration);};
