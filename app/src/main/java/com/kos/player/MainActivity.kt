@@ -25,7 +25,7 @@ import com.google.common.util.concurrent.MoreExecutors
 import android.media.audiofx.Equalizer
 import android.media.audiofx.BassBoost
 import android.media.audiofx.PresetReverb
-import java.util.concurrent.Future
+import com.google.common.util.concurrent.ListenableFuture
 
 data class Song(val id: Long, val title: String, val artist: String, val uri: Uri)
 
@@ -40,7 +40,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var play: Button
     private lateinit var seek: SeekBar
     private var controller: MediaController? = null
-    private var controllerFuture: Future<MediaController>? = null
+    private var controllerFuture: ListenableFuture<MediaController>? = null
     private var current = -1
     private var equalizer: Equalizer? = null
     private var bass: BassBoost? = null
@@ -210,7 +210,7 @@ class MainActivity : AppCompatActivity() {
                 override fun onStopTrackingTouch(s: SeekBar?) {}
             })
         }
-        box.addView(button("بازنشانی اکولایزر") { try { equalizer?.let { for(i in 0 until it.numberOfBands) it.setBandLevel(i.toShort(),0) } } catch (_:Exception) {} })
+        box.addView(button("بازنشانی اکولایزر") { try { equalizer?.let { for(i in 0 until it.numberOfBands.toInt()) it.setBandLevel(i.toShort(),0) } } catch (_:Exception) {} })
         box.addView(button("بستن") {})
         android.app.AlertDialog.Builder(this).setView(box).setPositiveButton("تمام") { d, _ -> d.dismiss() }.show()
     }
