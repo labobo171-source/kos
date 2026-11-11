@@ -25,6 +25,8 @@ import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
@@ -156,13 +158,31 @@ class MainActivity : AppCompatActivity() {
         fun setVolume(value: Float) { runOnUiThread { player.volume = value.coerceIn(0f, 1f) } }
 
         @JavascriptInterface
-        fun getPosition(): Long = if (::player.isInitialized) player.currentPosition.coerceAtLeast(0) else 0L
+        fun getPosition(): Long {
+            var value = 0L
+            val latch = CountDownLatch(1)
+            runOnUiThread { value = player.currentPosition.coerceAtLeast(0); latch.countDown() }
+            latch.await(2, TimeUnit.SECONDS)
+            return value
+        }
 
         @JavascriptInterface
-        fun getDuration(): Long = if (::player.isInitialized) player.duration.coerceAtLeast(0) else 0L
+        fun getDuration(): Long {
+            var value = 0L
+            val latch = CountDownLatch(1)
+            runOnUiThread { value = player.duration.coerceAtLeast(0); latch.countDown() }
+            latch.await(2, TimeUnit.SECONDS)
+            return value
+        }
 
         @JavascriptInterface
-        fun isPlaying(): Boolean = if (::player.isInitialized) player.isPlaying else false
+        fun isPlaying(): Boolean {
+            var value = false
+            val latch = CountDownLatch(1)
+            runOnUiThread { value = player.isPlaying; latch.countDown() }
+            latch.await(2, TimeUnit.SECONDS)
+            return value
+        }
     }
 
     @Deprecated("Deprecated in Java")
