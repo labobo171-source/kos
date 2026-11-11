@@ -193,7 +193,7 @@
         audioElement.onended=()=>{if(isRepeat)playTrack(currentIndex);else nextBtn.click();};
         function seekBy(delta){const track=playlist[currentIndex];if(window.AndroidBridge&&track&&track.nativeId!=null)AndroidBridge.seekTo(AndroidBridge.getPosition()+delta);else if(audioElement.duration)audioElement.currentTime=Math.max(0,Math.min(audioElement.duration,audioElement.currentTime+delta/1000));}
         progressWrapper.onclick=e=>{const track=playlist[currentIndex];const rect=progressWrapper.getBoundingClientRect(),clickPos=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));if(window.AndroidBridge&&track&&track.nativeId!=null){const duration=AndroidBridge.getDuration();if(duration>0)AndroidBridge.seekTo(Math.floor(clickPos*duration));}else if(audioElement.duration)audioElement.currentTime=clickPos*audioElement.duration;};
-        window.onNativePlaybackState=playing=>{isPlaying=!!playing;updatePlayButtons();};
+        window.onNativePlaybackState=playing=>{isPlaying=!!playing;updatePlayButtons();};window.onNativeMediaItemChanged=(id,title,artist)=>{const idx=playlist.findIndex(t=>t.nativeId!=null&&String(t.nativeId)===String(id));if(idx>=0){currentIndex=idx;titleEl.textContent=title;artistEl.textContent=artist;carTitle.textContent=title;carArtist.textContent=artist;applySortingAndRender();}};
         window.onNativeDuration=duration=>{durationEl.textContent=formatTime(duration/1000);};
         window.onNativeTrackEnded=()=>{if(isRepeat)playTrack(currentIndex);else nextBtn.click();};
         window.onNativePlaybackError=()=>{isPlaying=false;updatePlayButtons();alert('پخش این آهنگ ممکن نشد. لطفاً فایل دیگری را امتحان کنید.');};
