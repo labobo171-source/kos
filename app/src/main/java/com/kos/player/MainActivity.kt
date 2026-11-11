@@ -33,6 +33,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private var controller: MediaController? = null
     private var controllerFuture: ListenableFuture<MediaController>? = null
+    private var pendingItems: List<MediaItem>? = null
+    private var pendingStartIndex: Int = 0
     private val handler = Handler(Looper.getMainLooper())
 
     @Volatile private var cachedPosition = 0L
@@ -126,10 +128,28 @@ class MainActivity : AppCompatActivity() {
                 cachedPosition = connected.currentPosition.coerceAtLeast(0L)
                 cachedDuration = connected.duration.takeIf { it >= 0L } ?: 0L
                 cachedPlaying = connected.isPlaying
+                pendingItems?.let { items ->
+                    connected.setMediaItems(items, pendingStartIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0)), 0L)
+                    connected.prepare()
+                    connected.play()
+                    pendingItems = null
+                }
             } catch (error: Exception) {
                 notifyWeb("onNativePlaybackError()")
             }
         }, ContextCompat.getMainExecutor(this))
+    }
+
+    private fun playQueue(items: List<MediaItem>, startIndex: Int) {
+        val target = controller
+        if (target == null) {
+            pendingItems = items
+            pendingStartIndex = startIndex
+            return
+        }
+        target.setMediaItems(items, startIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0)), 0L)
+        target.prepare()
+        target.play()
     }
 
     private fun notifyWeb(script: String) {
@@ -195,11 +215,7 @@ class MainActivity : AppCompatActivity() {
                                 .build()
                         )
                     }
-                    controller?.apply {
-                        setMediaItems(items, startIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0)), 0L)
-                        prepare()
-                        play()
-                    } ?: notifyWeb("onNativePlaybackError()")
+                    playQueue(items, startIndex)
                 } catch (error: Exception) {
                     notifyWeb("onNativePlaybackError()")
                 }
