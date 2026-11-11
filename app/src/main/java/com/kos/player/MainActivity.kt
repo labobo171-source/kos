@@ -184,7 +184,7 @@ class MainActivity : AppCompatActivity() {
         if(equalizer == null) box.addView(label("ابتدا یک آهنگ پخش کنید تا تنظیمات صوتی فعال شود.", 13, Color.LTGRAY, false))
         else for(i in 0 until bands) {
             val range = equalizer!!.bandLevelRange
-            val slider = SeekBar(this).apply { max = (range[1]-range[0]).toInt(); progress = (equalizer!!.get bandLevel(i.toShort()).toInt() - range[0]).coerceIn(0,max) }
+            val slider = SeekBar(this).apply { max = (range[1]-range[0]).toInt(); progress = (equalizer!!.getBandLevel(i.toShort()).toInt() - range[0]).coerceIn(0,max) }
             box.addView(label("باند ${i+1}", 12, Color.WHITE, false)); box.addView(slider)
             slider.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(s: SeekBar?, p: Int, user: Boolean) { if(user) try { equalizer?.setBandLevel(i.toShort(), (p + range[0]).toShort()) } catch (_: Exception) {} }
