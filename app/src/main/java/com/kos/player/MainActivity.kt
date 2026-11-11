@@ -175,8 +175,6 @@ class MainActivity : AppCompatActivity() {
         val items = songs.map { s -> MediaItem.Builder().setUri(s.uri).setMediaMetadata(MediaMetadata.Builder().setTitle(s.title).setArtist(s.artist).build()).build() }
         c.setMediaItems(items, current, 0L); c.shuffleModeEnabled = shuffle; c.repeatMode = if (repeat) androidx.media3.common.Player.REPEAT_MODE_ONE else androidx.media3.common.Player.REPEAT_MODE_OFF; c.prepare(); c.play()
         title.text = song.title; artist.text = song.artist
-        val sessionId = c.audioSessionId
-        if (sessionId != androidx.media3.common.C.AUDIO_SESSION_ID_UNSET && sessionId != 0) setupEffects(sessionId)
     }
 
     private fun setupEffects(sessionId: Int) {
