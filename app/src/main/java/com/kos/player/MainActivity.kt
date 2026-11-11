@@ -229,6 +229,23 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface fun setVolume(value: Float) { runOnUiThread { controller?.volume = value.coerceIn(0f, 1f) } }
 
         @JavascriptInterface
+        fun getAudioSettingsJson(): String {
+            val prefs = getSharedPreferences(PlaybackService.AUDIO_PREFS, MODE_PRIVATE)
+            return JSONObject().apply {
+                put("amp", prefs.getFloat("amp", 1f))
+                put("bass", prefs.getFloat("bass", 3f))
+                put("treble", prefs.getFloat("treble", 0f))
+                put("midrange", prefs.getFloat("midrange", 0f))
+                put("sub", prefs.getFloat("sub", 0f))
+                put("subwoofer", prefs.getFloat("subwoofer", 0f))
+                put("supertweeter", prefs.getFloat("supertweeter", 0f))
+                val bands = JSONArray()
+                for (i in 0..9) bands.put(prefs.getFloat("eq_$i", 0f))
+                put("bands", bands)
+            }.toString()
+        }
+
+        @JavascriptInterface
         fun setAudioEffect(key: String, value: Float) {
             if (!key.matches(Regex("^(amp|bass|treble|midrange|sub|subwoofer|supertweeter)$"))) return
             getSharedPreferences(PlaybackService.AUDIO_PREFS, MODE_PRIVATE)
