@@ -1,10 +1,12 @@
 package com.kos.player
 
 import android.Manifest
+import android.content.ComponentName
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
@@ -15,22 +17,57 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import androidx.media3.common.AudioAttributes
-import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
+import com.google.common.util.concurrent.ListenableFuture
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 
 class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
-    private lateinit var player: ExoPlayer
+    private var controller: MediaController? = null
+    private var controllerFuture: ListenableFuture<MediaController>? = null
+    private val handler = Handler(Looper.getMainLooper())
+
+    @Volatile private var cachedPosition = 0L
+    @Volatile private var cachedDuration = 0L
+    @Volatile private var cachedPlaying = false
+
+    private val ticker = object : Runnable {
+        override fun run() {
+            controller?.let { player ->
+                cachedPosition = player.currentPosition.coerceAtLeast(0L)
+                cachedDuration = player.duration.takeIf { it >= 0L } ?: 0L
+                cachedPlaying = player.isPlaying
+            }
+            if (::webView.isInitialized && !isFinishing && !isDestroyed) {
+                handler.postDelayed(this, 250L)
+            }
+        }
+    }
+
+    private val playerListener = object : Player.Listener {
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            cachedPlaying = isPlaying
+            notifyWeb("onNativePlaybackState($isPlaying)")
+        }
+
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            controller?.let { cachedDuration = it.duration.takeIf { d -> d >= 0L } ?: 0L }
+            if (playbackState == Player.STATE_READY) notifyWeb("onNativeDuration($cachedDuration)")
+            if (playbackState == Player.STATE_ENDED) notifyWeb("onNativeTrackEnded()")
+        }
+
+        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+            notifyWeb("onNativePlaybackError()")
+        }
+    }
 
     private val audioPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (!granted) Toast.makeText(this, "برای نمایش آهنگ‌ها مجوز دسترسی لازم است", Toast.LENGTH_LONG).show()
@@ -41,33 +78,6 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = android.graphics.Color.rgb(3, 7, 18)
         window.navigationBarColor = android.graphics.Color.rgb(3, 7, 18)
-
-        player = ExoPlayer.Builder(this).build().apply {
-            setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(C.USAGE_MEDIA)
-                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-                    .build(),
-                true
-            )
-            addListener(object : Player.Listener {
-                override fun onIsPlayingChanged(isPlaying: Boolean) {
-                    notifyWeb("onNativePlaybackState($isPlaying)")
-                }
-
-                override fun onPlaybackStateChanged(playbackState: Int) {
-                    if (playbackState == Player.STATE_READY) {
-                        notifyWeb("onNativeDuration(${player.duration.coerceAtLeast(0)})")
-                    } else if (playbackState == Player.STATE_ENDED) {
-                        notifyWeb("onNativeTrackEnded()")
-                    }
-                }
-
-                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                    notifyWeb("onNativePlaybackError()")
-                }
-            })
-        }
 
         webView = WebView(this)
         webView.setBackgroundColor(android.graphics.Color.rgb(3, 7, 18))
@@ -84,9 +94,33 @@ class MainActivity : AppCompatActivity() {
         webView.addJavascriptInterface(AndroidBridge(), "AndroidBridge")
         setContentView(webView)
 
+        connectPlaybackService()
+        handler.post(ticker)
+
         val permission = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
         if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED) loadPlayer()
         else audioPermission.launch(permission)
+    }
+
+    private fun connectPlaybackService() {
+        val token = SessionToken(this, ComponentName(this, PlaybackService::class.java))
+        controllerFuture = MediaController.Builder(this, token).buildAsync()
+        controllerFuture?.addListener({
+            try {
+                val connected = controllerFuture?.get() ?: return@addListener
+                if (isFinishing || isDestroyed) {
+                    connected.release()
+                    return@addListener
+                }
+                controller = connected
+                connected.addListener(playerListener)
+                cachedPosition = connected.currentPosition.coerceAtLeast(0L)
+                cachedDuration = connected.duration.takeIf { it >= 0L } ?: 0L
+                cachedPlaying = connected.isPlaying
+            } catch (error: Exception) {
+                notifyWeb("onNativePlaybackError()")
+            }
+        }, ContextCompat.getMainExecutor(this))
     }
 
     private fun notifyWeb(script: String) {
@@ -133,56 +167,31 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
-        fun playTrack(uri: String) {
+        fun playTrack(uri: String, title: String, artist: String) {
             runOnUiThread {
                 try {
-                    player.setMediaItem(MediaItem.fromUri(Uri.parse(uri)))
-                    player.prepare()
-                    player.play()
-                } catch (e: Exception) {
+                    val metadata = MediaMetadata.Builder().setTitle(title).setArtist(artist).build()
+                    val item = MediaItem.Builder().setUri(uri).setMediaMetadata(metadata).build()
+                    controller?.apply {
+                        setMediaItem(item)
+                        prepare()
+                        play()
+                    } ?: notifyWeb("onNativePlaybackError()")
+                } catch (error: Exception) {
                     notifyWeb("onNativePlaybackError()")
                 }
             }
         }
 
-        @JavascriptInterface
-        fun pause() { runOnUiThread { player.pause() } }
+        @JavascriptInterface fun pause() { runOnUiThread { controller?.pause() } }
+        @JavascriptInterface fun resume() { runOnUiThread { controller?.play() } }
+        @JavascriptInterface fun seekTo(positionMs: Long) { runOnUiThread { controller?.seekTo(positionMs.coerceAtLeast(0L)) } }
+        @JavascriptInterface fun setVolume(value: Float) { runOnUiThread { controller?.volume = value.coerceIn(0f, 1f) } }
 
-        @JavascriptInterface
-        fun resume() { runOnUiThread { player.play() } }
-
-        @JavascriptInterface
-        fun seekTo(positionMs: Long) { runOnUiThread { player.seekTo(positionMs.coerceAtLeast(0)) } }
-
-        @JavascriptInterface
-        fun setVolume(value: Float) { runOnUiThread { player.volume = value.coerceIn(0f, 1f) } }
-
-        @JavascriptInterface
-        fun getPosition(): Long {
-            var value = 0L
-            val latch = CountDownLatch(1)
-            runOnUiThread { value = player.currentPosition.coerceAtLeast(0); latch.countDown() }
-            latch.await(2, TimeUnit.SECONDS)
-            return value
-        }
-
-        @JavascriptInterface
-        fun getDuration(): Long {
-            var value = 0L
-            val latch = CountDownLatch(1)
-            runOnUiThread { value = player.duration.coerceAtLeast(0); latch.countDown() }
-            latch.await(2, TimeUnit.SECONDS)
-            return value
-        }
-
-        @JavascriptInterface
-        fun isPlaying(): Boolean {
-            var value = false
-            val latch = CountDownLatch(1)
-            runOnUiThread { value = player.isPlaying; latch.countDown() }
-            latch.await(2, TimeUnit.SECONDS)
-            return value
-        }
+        // Return cached values: never block the WebView bridge thread waiting for the UI thread.
+        @JavascriptInterface fun getPosition(): Long = cachedPosition
+        @JavascriptInterface fun getDuration(): Long = cachedDuration
+        @JavascriptInterface fun isPlaying(): Boolean = cachedPlaying
     }
 
     @Deprecated("Deprecated in Java")
@@ -192,11 +201,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        handler.removeCallbacks(ticker)
+        controller?.removeListener(playerListener)
+        controller?.release()
+        controller = null
+        controllerFuture = null
         if (::webView.isInitialized) {
             webView.removeJavascriptInterface("AndroidBridge")
             webView.destroy()
         }
-        if (::player.isInitialized) player.release()
         super.onDestroy()
     }
 }
