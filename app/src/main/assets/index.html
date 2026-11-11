@@ -139,7 +139,7 @@
         <div class="car-giant-controls"><button class="btn-car-giant" id="btn-car-prev"><i class="fas fa-backward"></i></button><button class="btn-car-giant play" id="btn-car-play"><i class="fas fa-play"></i></button><button class="btn-car-giant" id="btn-car-next"><i class="fas fa-forward"></i></button></div>
         <div class="car-seek-row"><button class="btn-car-seek" id="btn-car-backward"><i class="fas fa-undo"></i> ۱۰ ثانیه</button><button class="btn-car-seek" id="btn-car-forward">۱۰ ثانیه <i class="fas fa-redo"></i></button></div>
     </div>
-    <audio id="audio-element" crossorigin="anonymous"></audio>
+    <audio id="audio-element" preload="metadata"></audio>
     <video id="video-element" style="display:none;"></video>
     <script>
         const audioElement=document.getElementById('audio-element'), videoElement=document.getElementById('video-element'), canvas=document.getElementById('visualizer'), ctx=canvas.getContext('2d');
@@ -178,18 +178,18 @@
         window.addEventListener('resize',()=>{if(camera&&renderer){camera.aspect=window.innerWidth/window.innerHeight;camera.updateProjectionMatrix();renderer.setSize(window.innerWidth,window.innerHeight);}});
         init3D();
         window.addEventListener('load',()=>{if(window.AndroidBridge)setTimeout(autoScanStorage,250);});
-        function playTrack(index){if(index<0||index>=playlist.length)return;initAudioEngine();if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume();currentIndex=index;const track=playlist[index];audioElement.src=track.url;audioElement.play().then(()=>{isPlaying=true;updatePlayButtons();updateMediaSession(track);}).catch(()=>{});titleEl.textContent=track.title;artistEl.textContent=track.artist;carTitle.textContent=track.title;carArtist.textContent=track.artist;applySortingAndRender();}
+        function playTrack(index){if(index<0||index>=playlist.length)return;initAudioEngine();if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume();currentIndex=index;const track=playlist[index];isPlaying=false;updatePlayButtons();audioElement.pause();audioElement.removeAttribute('src');audioElement.load();audioElement.src=track.url;audioElement.load();audioElement.play().then(()=>{isPlaying=true;updatePlayButtons();updateMediaSession(track);}).catch(err=>{isPlaying=false;updatePlayButtons();console.error('Audio playback failed:',err);alert('پخش این آهنگ ممکن نشد. لطفاً فایل دیگری را امتحان کنید.');});titleEl.textContent=track.title;artistEl.textContent=track.artist;carTitle.textContent=track.title;carArtist.textContent=track.artist;applySortingAndRender();}
         function togglePlay(){if(currentIndex===-1&&playlist.length>0){playTrack(0);return;}if(!audioElement.src)return;initAudioEngine();if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume();if(isPlaying){audioElement.pause();isPlaying=false;}else{audioElement.play();isPlaying=true;}updatePlayButtons();}
         function updatePlayButtons(){const icon=isPlaying?'<i class="fas fa-pause"></i>':'<i class="fas fa-play"></i>';playBtn.innerHTML=icon;carPlayBtn.innerHTML=icon;}
         playBtn.onclick=togglePlay;carPlayBtn.onclick=togglePlay;
-        nextBtn.onclick=()=>{if(!playlist.length)return;let next=isShuffle?Math.floor(Math.random()*playlist.length):currentIndex+1;if(next>=playlist.length)next=0;playTrack(next);};
-        prevBtn.onclick=()=>{if(!playlist.length)return;let prev=currentIndex-1;if(prev<0)prev=playlist.length-1;playTrack(prev);};
+        nextBtn.onclick=()=>{if(!playlist.length)return;let next;if(isShuffle&&playlist.length>1){do{next=Math.floor(Math.random()*playlist.length);}while(next===currentIndex);}else{next=currentIndex<0?0:currentIndex+1;if(next>=playlist.length)next=0;}playTrack(next);};
+        prevBtn.onclick=()=>{if(!playlist.length)return;let prev=currentIndex<0?0:currentIndex-1;if(prev<0)prev=playlist.length-1;playTrack(prev);};
         document.getElementById('btn-car-next').onclick=()=>nextBtn.click();document.getElementById('btn-car-prev').onclick=()=>prevBtn.click();
         document.getElementById('btn-car-forward').onclick=()=>{audioElement.currentTime=Math.min(audioElement.duration,audioElement.currentTime+10);};
         document.getElementById('btn-car-backward').onclick=()=>{audioElement.currentTime=Math.max(0,audioElement.currentTime-10);};
         document.getElementById('btn-shuffle').onclick=e=>{isShuffle=!isShuffle;e.currentTarget.style.color=isShuffle?'var(--primary)':'var(--text-main)';};
         document.getElementById('btn-repeat').onclick=e=>{isRepeat=!isRepeat;e.currentTarget.style.color=isRepeat?'var(--primary)':'var(--text-main)';};
-        audioElement.ontimeupdate=()=>{if(!audioElement.duration)return;const pct=(audioElement.currentTime/audioElement.duration)*100;progressFill.style.width=pct+'%';currentTimeEl.textContent=formatTime(audioElement.currentTime);durationEl.textContent=formatTime(audioElement.duration);};
+        audioElement.onplay=()=>{isPlaying=true;updatePlayButtons();};audioElement.onpause=()=>{isPlaying=false;updatePlayButtons();};audioElement.onerror=()=>{console.error('Audio element error',audioElement.error);};audioElement.ontimeupdate=()=>{if(!audioElement.duration)return;const pct=(audioElement.currentTime/audioElement.duration)*100;progressFill.style.width=pct+'%';currentTimeEl.textContent=formatTime(audioElement.currentTime);durationEl.textContent=formatTime(audioElement.duration);};
         audioElement.onended=()=>{if(isRepeat)playTrack(currentIndex);else nextBtn.click();};
         progressWrapper.onclick=e=>{if(!audioElement.duration)return;const rect=progressWrapper.getBoundingClientRect(),clickPos=(e.clientX-rect.left)/rect.width;audioElement.currentTime=clickPos*audioElement.duration;};
         function formatTime(sec){const m=Math.floor(sec/60),s=Math.floor(sec%60);return `${m<10?'0':''}${m}:${s<10?'0':''}${s}`;}
