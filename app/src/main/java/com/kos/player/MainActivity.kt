@@ -55,6 +55,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = bg
         window.navigationBarColor = bg
+        favorites.addAll(getSharedPreferences("kos", MODE_PRIVATE).getStringSet("favorites", emptySet())!!.mapNotNull { it.toLongOrNull() })
         buildUi()
         val token = SessionToken(this, ComponentName(this, PlaybackService::class.java))
         controllerFuture = MediaController.Builder(this, token).buildAsync()
@@ -88,8 +89,8 @@ class MainActivity : AppCompatActivity() {
         controls.addView(button("⏮") { previous() }); play = button("▶", 22) { toggle() }; controls.addView(play); controls.addView(button("⏭") { next() })
         root.addView(controls)
         val modes = LinearLayout(this).apply { gravity = Gravity.CENTER; orientation = LinearLayout.HORIZONTAL }
-        modes.addView(button("🔀") { shuffle = !shuffle; toast(if(shuffle) "پخش تصادفی روشن" else "پخش تصادفی خاموش") })
-        modes.addView(button("🔁") { repeat = !repeat; toast(if(repeat) "تکرار روشن" else "تکرار خاموش") })
+        modes.addView(button("🔀") { shuffle = !shuffle; controller?.shuffleModeEnabled = shuffle; toast(if(shuffle) "پخش تصادفی روشن" else "پخش تصادفی خاموش") })
+        modes.addView(button("🔁") { repeat = !repeat; controller?.repeatMode = if(repeat) androidx.media3.common.Player.REPEAT_MODE_ONE else androidx.media3.common.Player.REPEAT_MODE_OFF; toast(if(repeat) "تکرار روشن" else "تکرار خاموش") })
         modes.addView(button("♥ علاقه‌مندی‌ها") { favoritesOnly = !favoritesOnly; renderList() })
         modes.addView(button("🚗") { showCarMode() })
         root.addView(modes)
@@ -145,7 +146,7 @@ class MainActivity : AppCompatActivity() {
             info.addView(label(song.title, 15, Color.WHITE, true))
             info.addView(label(song.artist, 12, Color.LTGRAY, false).apply { setPadding(0,4,0,0) })
             row.addView(info, LinearLayout.LayoutParams(0,-2,1f))
-            row.addView(button(if(favorites.contains(song.id)) "♥" else "♡") { if(!favorites.add(song.id)) favorites.remove(song.id); renderList() })
+            row.addView(button(if(favorites.contains(song.id)) "♥" else "♡") { if(!favorites.add(song.id)) favorites.remove(song.id); getSharedPreferences("kos", MODE_PRIVATE).edit().putStringSet("favorites", favorites.map { it.toString() }.toSet()).apply(); renderList() })
             row.setOnClickListener { playSong(song) }
             val lp = LinearLayout.LayoutParams(-1,-2); lp.bottomMargin = 8; list.addView(row, lp)
         }
@@ -154,8 +155,8 @@ class MainActivity : AppCompatActivity() {
     private fun playSong(song: Song) {
         val c = controller ?: run { toast("پخش‌کننده در حال آماده‌سازی است"); return }
         current = songs.indexOf(song)
-        val item = MediaItem.Builder().setUri(song.uri).setMediaMetadata(MediaMetadata.Builder().setTitle(song.title).setArtist(song.artist).build()).build()
-        c.setMediaItem(item); c.prepare(); c.play()
+        val items = songs.map { s -> MediaItem.Builder().setUri(s.uri).setMediaMetadata(MediaMetadata.Builder().setTitle(s.title).setArtist(s.artist).build()).build() }
+        c.setMediaItems(items, current, 0L); c.shuffleModeEnabled = shuffle; c.repeatMode = if (repeat) androidx.media3.common.Player.REPEAT_MODE_ONE else androidx.media3.common.Player.REPEAT_MODE_OFF; c.prepare(); c.play()
         title.text = song.title; artist.text = song.artist
         val sessionId = c.audioSessionId
         if (sessionId != androidx.media3.common.C.AUDIO_SESSION_ID_UNSET) setupEffects(sessionId)
